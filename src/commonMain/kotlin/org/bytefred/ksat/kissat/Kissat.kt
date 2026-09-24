@@ -5,36 +5,37 @@ import org.bytefred.ksat.SatSolver
 import org.bytefred.ksat.Traceable
 
 /**
- * Faithful Kotlin port of the CORE CDCL solver of kissat (MIT, (c) 2019-2024 Armin Biere
- * and the kissat authors), with ALL inprocessing disabled -> plain, deterministic,
- * trace-matchable CDCL. See ../shadow/kissat-c/kissat_trace.cc for the self-contained
- * instrumented C reference this is transcribed from 1:1.
+ * Kotlin port of kissat's core CDCL solver by Manfred Scheucher, 2026.
+ * Upstream kissat: MIT, (c) 2019-2024 Armin Biere and contributors.
  *
- * kissat differs from CaDiCaL in several load-bearing ways that this port preserves:
- *   - UNSIGNED internal literals: lit = 2*idx + sign, NOT(lit) = lit xor 1, IDX = lit ushr 1.
+ * Only the CDCL core is ported, with all inprocessing off, so the run is plain and
+ * deterministic and can be shadow-tested against the C. The instrumented reference is
+ * ../shadow/kissat-c/kissat_trace.cc; the code follows its structure, not idiomatic Kotlin,
+ * so the two line up.
+ *
+ * kissat differs from CaDiCaL in a few ways that matter, and the port keeps them:
+ *   - unsigned literals: lit = 2*idx + sign, NOT(lit) = lit xor 1, idx = lit ushr 1.
  *     values[] is indexed by literal, values[lit] = -values[NOT lit].
- *   - a 2-word large-clause watch encoding (blocking-word then reference-word) in a flat
+ *   - a 2-word large-clause watch encoding (blocking word, then reference word) in a flat
  *     Int watch list; binary clauses are watch-only (no arena clause).
- *   - conflict analysis via kissat's conflict-level reuse shortcut then a first-UIP
- *     deduction using per-decision-level frame 'used' counters, a level-sorted rebuild,
- *     and recursive minimization.
- *   - a binary max-heap keyed purely by double score with POSITIONAL tie-break (insertion
- *     order), NOT index tie-break (this is the key heap difference from CaDiCaL).
- *   - ADAM-style bias-corrected EMAs of the glue and a reluctant (Luby) restart schedule.
+ *   - conflict analysis: kissat's conflict-level reuse shortcut, then a first-UIP deduction
+ *     using per-decision-level frame 'used' counters, a level-sorted rebuild, and recursive
+ *     minimization.
+ *   - a binary max-heap keyed on double score with a positional tie-break (insertion order),
+ *     not an index tie-break -- the key heap difference from CaDiCaL.
+ *   - bias-corrected EMAs of the glue and a reluctant (Luby) restart schedule.
  *   - trail reuse on restart; LBD-tiered reduce with a packed (~size | ~glue<<32) rank.
  *
- * DISABLED (documented core configuration, so C and Kotlin match): chronological
- * backtracking, on-the-fly self-subsumption/strengthening, clause shrinking beyond
- * recursive minimize, reason-side bumping, eager subsumption, random decisions,
- * jump-reasons, rephasing/reordering/warming/lucky, and all inprocessing (+ kitten).
+ * Off (so C and Kotlin match): chronological backtracking, on-the-fly
+ * self-subsumption/strengthening, clause shrinking beyond recursive minimize, reason-side
+ * bumping, eager subsumption, random decisions, jump-reasons, rephasing/reordering/warming/
+ * lucky, and all inprocessing (+ kitten).
  *
- * FLOATING POINT: kissat stores its heap scores (`heap.score`) and the score increment
- * (`scinc`) as C `double`, and the glue EMAs as `double`. Kotlin/JVM `Double` is IEEE-754
- * identical to C `double`, and every score/EMA update here is transcribed in the same
- * evaluation order, so L1 (byte-for-byte trace) is expected to hold with
+ * Floating point: heap scores (`heap.score`), the score increment (`scinc`), and the glue
+ * EMAs are `double`. JVM `Double` is IEEE-754, the same as C's, and every score/EMA update
+ * runs in the same order, so the trace matches at L1 (byte-for-byte) with
  * [ActivityPrecision.FLOAT64] (the default). [ActivityPrecision.FLOAT32] rounds every score
- * write via toFloat().toDouble() for a hypothetical float build / standalone experiments.
- * Not idiomatic Kotlin on purpose -- correspondence to the C beats idiom.
+ * write via toFloat().toDouble(), for a hypothetical float build or standalone experiments.
  */
 enum class ActivityPrecision { FLOAT32, FLOAT64 }
 
