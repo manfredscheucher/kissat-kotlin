@@ -6,7 +6,8 @@ import org.bytefred.ksat.Traceable
 
 /**
  * Kotlin port of kissat's core CDCL solver by Manfred Scheucher, 2026.
- * Upstream kissat: MIT, (c) 2019-2024 Armin Biere and contributors.
+ * Upstream kissat: 4.0.x (2024 line; github.com/arminbiere/kissat, identified by the
+ * dynamic glue-histogram tiers + split-out tiers.c/promote.c); MIT, (c) 2019-2024 Armin Biere and contributors.
  *
  * Only the CDCL core is ported, with all inprocessing off, so the run is plain and
  * deterministic and can be shadow-tested against the C. The instrumented reference is
