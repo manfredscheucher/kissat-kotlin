@@ -1420,9 +1420,13 @@ class Kissat(
     // decide (decide.c)
     // =========================================================================
     private fun lastEnqueuedUnassignedVariable(): Int {
+        check(unassigned != 0) { "lastEnqueuedUnassignedVariable: no unassigned variable" } // upstream decide.c: assert(solver->unassigned)
         var res = qSearchIdx
         if (values[lit(res)].toInt() != 0) {
-            do { res = linkPrev[res] } while (values[lit(res)].toInt() != 0)
+            do {
+                res = linkPrev[res]
+                check(res != DISCONNECT) { "lastEnqueuedUnassignedVariable: walked off the decision queue" } // upstream: assert(!DISCONNECTED(res))
+            } while (values[lit(res)].toInt() != 0)
             updateQueue(res)
         }
         return res
@@ -1607,6 +1611,13 @@ class Kissat(
     // =========================================================================
     private fun searchLoop(): Int {
         if (inconsistent) { tr("RESULT UNSAT"); return 20 }
+        // Restore to the root before (re-)solving: a previous solve may have returned SAT with
+        // a dirty level>0 trail, so a clause added since then must be examined at level 0, not
+        // over a stale trail. Upstream enters search already at level 0 (backtrack sets
+        // propagate = frames[new_level+1].trail, root frame trail = 0). backtrack here also
+        // sets `propagate = newTrail` (= 0 at level 0), so searchPropagate re-scans the new
+        // clause from the root.
+        if (level > 0) backtrackInConsistentState(0)
         stable = (OPT_stable == 2)   // default 1 -> focused first
         initAverages()
         if (stable) { reluctant.enable(OPT_reluctantint, OPT_reluctantlim); updateScores() }
@@ -1641,6 +1652,12 @@ class Kissat(
     // =========================================================================
     override fun addClause(literals: IntArray) {
         if (inconsistent) return
+        // Import original clauses at the root. A previous solve may leave a level>0 trail; the
+        // root-false / satisfied checks below read aLevel[idx]==0, and a unit would be assigned at
+        // the current (high) level, landing at the wrong trail/queue position so the next solve
+        // cannot find an unassigned variable (decide() walks off the queue). Restore to level 0
+        // first, as kissat imports originals only at the root.
+        if (level > 0) backtrackInConsistentState(0)
         // convert DIMACS -> internal literals, drop root-false / satisfied, dedup + taut
         val ps = IntArrayList()
         var taut = false
